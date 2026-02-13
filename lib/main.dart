@@ -11,7 +11,7 @@ class DengueLensApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Dengue Lens',
+      title: 'Dengue Lens 1',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
