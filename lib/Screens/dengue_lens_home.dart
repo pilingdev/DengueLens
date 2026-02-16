@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dengue_lens_history.dart';
 import 'widgets/homepage/home_header.dart';
 import 'widgets/homepage/hero_section.dart';
 import 'widgets/homepage/scan_button.dart';
@@ -98,7 +99,14 @@ class _DengueLensHomeState extends State<DengueLensHome> {
         indicatorColor: const Color(0xFFE8F5E9),
         selectedIndex: 0,
         onDestinationSelected: (index) {
-          // TODO: Implement navigation
+          if (index == 1) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const DengueLensHistory(),
+              ),
+            );
+          }
         },
         destinations: const [
           NavigationDestination(
