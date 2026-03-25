@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'date_header.dart';
-import 'scan_card.dart';
 
 class ScanList extends StatelessWidget {
   const ScanList({super.key});

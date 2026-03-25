@@ -4,15 +4,15 @@ import 'package:flutter/services.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:image/image.dart' as img;
 
-/// Wraps the mosquito-species TFLite model.
-/// Call [init] once (e.g. in main()) before using [predict].
+///Wraps the mosquito-species TFLite model.
+///Call [init] once (e.g. in main()) before using [predict].
 class TfliteService {
-  // ── Singleton ────────────────────────────────────────────────────────────
+  //Singleton
   static final TfliteService _instance = TfliteService._internal();
   factory TfliteService() => _instance;
   TfliteService._internal();
 
-  // ── State ─────────────────────────────────────────────────────────────────
+  //State
   late Interpreter _interpreter;
   late List<String> _labels;
   bool _initialized = false;
@@ -20,9 +20,9 @@ class TfliteService {
   // MobileNetV2 expects 224 × 224 RGB input
   static const int _inputSize = 224;
 
-  // ── Initialisation ────────────────────────────────────────────────────────
+  //Initialisation
 
-  /// Load the model and label list from Flutter assets.
+  ///Load the model and label list from Flutter assets.
   Future<void> init() async {
     if (_initialized) return;
 
@@ -43,15 +43,15 @@ class TfliteService {
     _initialized = true;
   }
 
-  // ── Inference ─────────────────────────────────────────────────────────────
+  //Inference
 
-  /// Run inference on [imageFile].
+  ///Run inference on [imageFile].
   ///
-  /// Returns a [PredictionResult] with the top-1 label and confidence (0–1).
+  ///Returns a [PredictionResult] with the top-1 label and confidence (0–1).
   Future<PredictionResult> predict(File imageFile) async {
     assert(_initialized, 'TfliteService not initialized – call init() first.');
 
-    // 1️⃣  Read & pre-process image --------------------------------------------
+    // 1️⃣  Read & pre-process image
     final bytes = await imageFile.readAsBytes();
     final original = img.decodeImage(bytes);
     if (original == null) {
@@ -66,28 +66,35 @@ class TfliteService {
       interpolation: img.Interpolation.linear,
     );
 
-    // Build Float32 input tensor [1, 224, 224, 3], values in [0, 1]
-    final input = List.generate(
-      1,
-      (_) => List.generate(
-        _inputSize,
-        (y) => List.generate(_inputSize, (x) {
-          final pixel = resized.getPixel(x, y);
-          return [pixel.r / 255.0, pixel.g / 255.0, pixel.b / 255.0];
-        }),
-      ),
-    );
+    // Use a small ensemble of augmented images to improve confidence.
+    // This can help stabilize predictions for slightly different orientations.
+    final augmentedImages = <img.Image>[
+      resized,
+      img.flipHorizontal(resized),
+      img.copyRotate(resized, angle: 90),
+    ];
 
     // 2️⃣  Allocate output tensor [1, numClasses] ------------------------------
     final numClasses = _labels.length;
-    final output = List.generate(1, (_) => List.filled(numClasses, 0.0));
+    final accumulatedScores = List.filled(numClasses, 0.0);
 
-    // 3️⃣  Run inference -------------------------------------------------------
-    _interpreter.run(input, output);
+    // Run inference on each augmentation and accumulate logits.
+    for (final aug in augmentedImages) {
+      final input = _buildInputTensor(aug);
+      final output = List.generate(1, (_) => List.filled(numClasses, 0.0));
+      _interpreter.run(input, output);
+      for (var i = 0; i < numClasses; i++) {
+        accumulatedScores[i] += output[0][i];
+      }
+    }
+
+    // Average logits across augmentations
+    for (var i = 0; i < numClasses; i++) {
+      accumulatedScores[i] = accumulatedScores[i] / augmentedImages.length;
+    }
 
     // 4️⃣  Post-process: apply softmax -----------------------------------------
-    final rawScores = List<double>.from(output[0]);
-    final softmaxed = _softmax(rawScores);
+    final softmaxed = _softmax(accumulatedScores);
 
     // Build sorted map
     final results = <String, double>{
@@ -107,6 +114,19 @@ class TfliteService {
       label: topLabel,
       confidence: topConf,
       allScores: sorted,
+    );
+  }
+
+  List<List<List<List<double>>>> _buildInputTensor(img.Image image) {
+    return List.generate(
+      1,
+      (_) => List.generate(
+        _inputSize,
+        (y) => List.generate(_inputSize, (x) {
+          final pixel = image.getPixel(x, y);
+          return [pixel.r / 255.0, pixel.g / 255.0, pixel.b / 255.0];
+        }),
+      ),
     );
   }
 

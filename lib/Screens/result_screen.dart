@@ -21,13 +21,23 @@ class ResultScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isPositive = result.toLowerCase() == "positive";
-    final resultColor = isPositive ? Colors.red : Colors.green;
+    final normalizedResult = result.toLowerCase();
+    final isPositive = normalizedResult == "positive";
+    final isUncertain = normalizedResult == "uncertain";
+    final resultColor = isPositive
+        ? Colors.red
+        : isUncertain
+        ? Colors.orange
+        : Colors.green;
     final resultIcon = isPositive
         ? Icons.warning_rounded
+        : isUncertain
+        ? Icons.help_outline_rounded
         : Icons.check_circle_rounded;
     final resultMessage = isPositive
         ? "Known dengue species carrying the virus"
+        : isUncertain
+        ? "Low confidence — try another photo"
         : "No Dengue Detected";
     final confidencePercentage = (confidence * 100).toStringAsFixed(1);
 

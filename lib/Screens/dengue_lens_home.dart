@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import '../services/tflite_service.dart';
 import 'dengue_lens_history.dart';
 import 'result_screen.dart';
 import 'widgets/homepage/home_header.dart';
@@ -34,22 +35,39 @@ class _DengueLensHomeState extends State<DengueLensHome> {
         final supportedFormats = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
         if (supportedFormats.contains(fileExtension)) {
-          // Navigate to result screen with the picked image
-          if (mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ResultScreen(
-                  imagePath: File(filePath),
-                  testDate: DateTime.now(),
-                  result:
-                      "negative", // Default value, can be updated with API response
-                  confidence: 0.85,
-                  sampleType: "Blood Sample",
-                  mosquitoType: "Aedes Albopictus",
+          try {
+            final prediction = await TfliteService().predict(File(filePath));
+            final isPositive =
+                prediction.label.toLowerCase() == "albopictus" &&
+                prediction.confidence > 0.6;
+            final isUncertain = prediction.confidence < 0.55;
+            final result = isPositive
+                ? "positive"
+                : isUncertain
+                ? "uncertain"
+                : "negative";
+
+            if (mounted) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ResultScreen(
+                    imagePath: File(filePath),
+                    testDate: DateTime.now(),
+                    result: result,
+                    confidence: prediction.confidence,
+                    sampleType: "Mosquito Image",
+                    mosquitoType: prediction.displayName,
+                  ),
                 ),
-              ),
-            );
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text('Prediction failed: $e')));
+            }
           }
         } else {
           if (mounted) {
@@ -78,21 +96,39 @@ class _DengueLensHomeState extends State<DengueLensHome> {
       final XFile? photo = await picker.pickImage(source: ImageSource.camera);
 
       if (photo != null) {
-        if (mounted) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ResultScreen(
-                imagePath: File(photo.path),
-                testDate: DateTime.now(),
-                result:
-                    "negative", // Default value, can be updated with API response
-                confidence: 0.85,
-                sampleType: "Blood Sample",
-                mosquitoType: "Aedes Albopictus",
+        try {
+          final prediction = await TfliteService().predict(File(photo.path));
+          final isPositive =
+              prediction.label.toLowerCase() == "albopictus" &&
+              prediction.confidence > 0.6;
+          final isUncertain = prediction.confidence < 0.55;
+          final result = isPositive
+              ? "positive"
+              : isUncertain
+              ? "uncertain"
+              : "negative";
+
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ResultScreen(
+                  imagePath: File(photo.path),
+                  testDate: DateTime.now(),
+                  result: result,
+                  confidence: prediction.confidence,
+                  sampleType: "Mosquito Image",
+                  mosquitoType: prediction.displayName,
+                ),
               ),
-            ),
-          );
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Prediction failed: $e')));
+          }
         }
       }
     } catch (e) {
@@ -127,16 +163,11 @@ class _DengueLensHomeState extends State<DengueLensHome> {
                       const SizedBox(height: 40),
 
                       // Primary Action - Scan Button
-                      ScanButton(onTap: () {}),
+                      ScanButton(onTap: _captureImageFromCamera),
 
                       const SizedBox(height: 24),
                       // Secondary Action - Upload
                       UploadButton(onPressed: _pickImageFromGallery),
-
-                      const SizedBox(height: 40),
-
-                      // Primary Action - Scan Button
-                      ScanButton(onTap: _captureImageFromCamera),
 
                       const SizedBox(height: 24),
 
