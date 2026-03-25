@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'dengue_lens_history.dart';
+import 'result_screen.dart';
 import 'widgets/homepage/home_header.dart';
 import 'widgets/homepage/hero_section.dart';
 import 'widgets/homepage/scan_button.dart';
@@ -16,17 +19,48 @@ class DengueLensHome extends StatefulWidget {
 }
 
 class _DengueLensHomeState extends State<DengueLensHome> {
-  final ImagePicker _picker = ImagePicker();
-
   Future<void> _pickImageFromGallery() async {
     try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-      if (image != null) {
-        // TODO: Handle the picked image (e.g., upload to server, display in UI)
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Image selected: ${image.name}')),
-          );
+      // Use file_picker for better Windows desktop support
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+        dialogTitle: 'Select an image',
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final filePath = result.files.single.path!;
+        final fileExtension = filePath.split('.').last.toLowerCase();
+        final supportedFormats = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+
+        if (supportedFormats.contains(fileExtension)) {
+          // Navigate to result screen with the picked image
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ResultScreen(
+                  imagePath: File(filePath),
+                  testDate: DateTime.now(),
+                  result:
+                      "negative", // Default value, can be updated with API response
+                  confidence: 0.85,
+                  sampleType: "Blood Sample",
+                  mosquitoType: "Aedes Albopictus",
+                ),
+              ),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Unsupported format. Please select JPEG, PNG, GIF or WebP',
+                ),
+              ),
+            );
+          }
         }
       }
     } catch (e) {
@@ -34,6 +68,38 @@ class _DengueLensHomeState extends State<DengueLensHome> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
+      }
+    }
+  }
+
+  Future<void> _captureImageFromCamera() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? photo = await picker.pickImage(source: ImageSource.camera);
+
+      if (photo != null) {
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ResultScreen(
+                imagePath: File(photo.path),
+                testDate: DateTime.now(),
+                result:
+                    "negative", // Default value, can be updated with API response
+                confidence: 0.85,
+                sampleType: "Blood Sample",
+                mosquitoType: "Aedes Albopictus",
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to capture image: $e')));
       }
     }
   }
@@ -61,18 +127,18 @@ class _DengueLensHomeState extends State<DengueLensHome> {
                       const SizedBox(height: 40),
 
                       // Primary Action - Scan Button
-                      ScanButton(
-                        onTap: () {
-                          // TODO: Implement scan action
-                        },
-                      ),
+                      ScanButton(onTap: () {}),
 
                       const SizedBox(height: 24),
-
                       // Secondary Action - Upload
                       UploadButton(onPressed: _pickImageFromGallery),
 
                       const SizedBox(height: 40),
+
+                      // Primary Action - Scan Button
+                      ScanButton(onTap: _captureImageFromCamera),
+
+                      const SizedBox(height: 24),
 
                       // Bite Health Tips Section
                       HealthTipCard(

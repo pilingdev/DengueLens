@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'Screens/dengue_lens_home.dart';
+import 'services/tflite_service.dart';
 // import 'Screens/dengue_lens_history.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Pre-load the TFLite model once so inference is fast
+  await TfliteService().init();
   runApp(const DengueLensApp());
 }
 
