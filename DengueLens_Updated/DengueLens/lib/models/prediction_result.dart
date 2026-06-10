@@ -40,9 +40,9 @@ class Detection {
       case 'albopictus':
         return 'Aedes albopictus';
       case 'anopheles':
-        return 'Anopheles sp.';
+        return 'Anopheles';
       case 'culex':
-        return 'Culex sp.';
+        return 'Culex';
       case 'aegypti':
         return 'Aedes aegypti';
       case 'non-mosquito':

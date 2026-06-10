@@ -3,7 +3,9 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'dart:math' as math;
 import '../models/sighting_model.dart';
+import '../services/history_service.dart';
 
 class PointMapScreen extends StatefulWidget {
   const PointMapScreen({super.key});
@@ -18,58 +20,61 @@ class _PointMapScreenState extends State<PointMapScreen>
 
   final LatLng _userLocation = const LatLng(3.1390, 101.6869);
 
-  late List<Sighting> _mockSightings;
+  late List<Sighting> _sightings;
 
   @override
   void initState() {
     super.initState();
-    _mockSightings = _generateMockSightings();
+    _sightings = _loadSightings();
   }
 
-  List<Sighting> _generateMockSightings() {
-    final now = DateTime.now();
-    return [
-      Sighting(
-        id: '1',
-        species: Species.aegypti,
-        location: const LatLng(3.1393, 101.6866),
-        timestamp: now.subtract(const Duration(minutes: 5)),
-        distance: 45,
-        bearing: 'NW',
-      ),
-      Sighting(
-        id: '2',
-        species: Species.albopictus,
-        location: const LatLng(3.1388, 101.6873),
-        timestamp: now.subtract(const Duration(hours: 15)),
-        distance: 80,
-        bearing: 'SE',
-      ),
-      Sighting(
-        id: '3',
-        species: Species.aegypti,
-        location: const LatLng(3.1385, 101.6865),
-        timestamp: now.subtract(const Duration(hours: 26)),
-        distance: 95,
-        bearing: 'SW',
-      ),
-      Sighting(
-        id: '4',
-        species: Species.albopictus,
-        location: const LatLng(3.1394, 101.6872),
-        timestamp: now.subtract(const Duration(minutes: 10)),
-        distance: 60,
-        bearing: 'NE',
-      ),
-      Sighting(
-        id: '5',
-        species: Species.aegypti,
-        location: const LatLng(3.1394, 101.6871),
-        timestamp: now.subtract(const Duration(hours: 8)),
-        distance: 55,
-        bearing: 'NE',
-      ),
-    ];
+  List<Sighting> _loadSightings() {
+    final records = HistoryService().records;
+    final List<Sighting> sightings = [];
+    final random = math.Random();
+    
+    for (final record in records) {
+      final mosquitoLower = record.mosquitoType.toLowerCase();
+      Species? species;
+      if (mosquitoLower.contains('aegypti')) {
+        species = Species.aegypti;
+      } else if (mosquitoLower.contains('albopictus')) {
+        species = Species.albopictus;
+      }
+      
+      if (species != null) {
+        // Use real location if available, otherwise mock an offset from _userLocation
+        LatLng loc = _userLocation;
+        if (record.location != null && record.location!.contains(',')) {
+          try {
+            final parts = record.location!.split(',');
+            loc = LatLng(double.parse(parts[0]), double.parse(parts[1]));
+          } catch (e) {
+            // fallback to _userLocation
+          }
+        } else {
+          // generate a small random offset around user location if no location
+          final latOffset = (random.nextDouble() - 0.5) * 0.002;
+          final lngOffset = (random.nextDouble() - 0.5) * 0.002;
+          loc = LatLng(_userLocation.latitude + latOffset, _userLocation.longitude + lngOffset);
+        }
+        
+        // Mock distance and bearing since we don't have real distance calc yet
+        final distance = random.nextDouble() * 100 + 10; // 10-110m
+        final bearings = ['NW', 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W'];
+        final bearing = bearings[random.nextInt(bearings.length)];
+        
+        sightings.add(Sighting(
+          id: record.id,
+          species: species,
+          location: loc,
+          timestamp: record.date,
+          distance: distance,
+          bearing: bearing,
+        ));
+      }
+    }
+    return sightings;
   }
 
   void _showFocusState(Sighting sighting) {
@@ -210,10 +215,10 @@ class _PointMapScreenState extends State<PointMapScreen>
 
   @override
   Widget build(BuildContext context) {
-    int activeClusters = _mockSightings
+    int activeClusters = _sightings
         .where((s) => s.ageInMinutes < 24 * 60)
         .length;
-    int recentSightings = _mockSightings
+    int recentSightings = _sightings
         .where((s) => s.ageInMinutes < 60)
         .length;
 
@@ -288,7 +293,7 @@ class _PointMapScreenState extends State<PointMapScreen>
 
               // Sighting Markers (Heat Zones)
               MarkerLayer(
-                markers: _mockSightings.map((sighting) {
+                markers: _sightings.map((sighting) {
                   return Marker(
                     point: sighting.location,
                     width: 40,

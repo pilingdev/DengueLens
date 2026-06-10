@@ -199,7 +199,53 @@ class _DengueLensHomeState extends State<DengueLensHome> {
                           // Bite Health Tips Section
                           HealthTipCard(
                             onReadMore: () {
-                              // TODO: Implement read more
+                              showModalBottomSheet(
+                                context: context,
+                                shape: const RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                ),
+                                builder: (BuildContext context) {
+                                  return Container(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Treating a Mosquito Bite',
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 16),
+                                        const Text(
+                                          '1. Wash the area with soap and water.\n'
+                                          '2. Apply a cool compress to reduce swelling and itching.\n'
+                                          '3. Avoid scratching the bite to prevent infection.\n'
+                                          '4. Apply an over-the-counter anti-itch or antihistamine cream.\n'
+                                          '5. Monitor the bite for signs of infection (increased redness, swelling, or pus).',
+                                          style: TextStyle(fontSize: 16, height: 1.5, color: Colors.black54),
+                                        ),
+                                        const SizedBox(height: 24),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                                            onPressed: () => Navigator.pop(context),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(0xFF2ECC71),
+                                              foregroundColor: Colors.white,
+                                              padding: const EdgeInsets.symmetric(vertical: 14),
+                                            ),
+                                            child: const Text('Close', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              );
                             },
                           ),
 
