@@ -44,7 +44,7 @@ class SymptomResultScreen extends StatelessWidget {
     switch (_riskLevel) {
       case 'Low':
         return 'Your current assessment indicates a '
-            'Low Risk level. No dengue symptoms detected. Continue monitoring your health '
+            'Low Risk level. No dengue symptoms detected. It is better, but please observe your health and remain cautious. Continue monitoring your health '
             'and take precautions to avoid further mosquito bites.';
       case 'Moderate':
         return 'Your current assessment indicates a '
@@ -133,26 +133,6 @@ class SymptomResultScreen extends StatelessWidget {
     return (symptomCount / totalSymptoms).clamp(0.0, 1.0);
   }
 
-  void _showInfo(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('About this assessment'),
-        content: const Text(
-          'This tool is for education and early awareness only. It does not replace '
-          'professional medical diagnosis. If you feel unwell or your symptoms worsen, '
-          'contact a healthcare provider.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -170,15 +150,40 @@ class SymptomResultScreen extends StatelessWidget {
             fontSize: 18,
           ),
         ),
-        leading: IconButton(
-          icon: Icon(Icons.info_outline, color: Colors.grey.shade700),
-          onPressed: () => _showInfo(context),
-        ),
+        automaticallyImplyLeading: false,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
             children: [
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.amber.shade200),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.amber.shade800, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'This tool is for education and early awareness only. It does not replace '
+                        'professional medical diagnosis. If you feel unwell or your symptoms worsen, '
+                        'contact a healthcare provider.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.amber.shade900,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 8),
               SizedBox(
                 width: 200,

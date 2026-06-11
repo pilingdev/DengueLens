@@ -74,7 +74,7 @@ Core flow is implemented. Missing items:
 ### TASK-1.2.A — Disclaimer is only shown on demand (info button)
 The disclaimer "This tool is for education only" is hidden behind an info icon. WHO guidelines recommend it be **always visible**.
 
-- [ ] Move the disclaimer to a small persistent banner at the top of the result screen
+- [x] Move the disclaimer to a small persistent banner at the top of the result screen
 
 ### TASK-1.2.B — Symptom assessment is not linked back to scan records properly
 When triggered from a dengue vector scan result (`ResultScreen → bottom sheet → SymptomQuestionnaireScreen`), the symptom result is saved as a **separate** record in history with no link to the original scan.
@@ -85,7 +85,7 @@ When triggered from a dengue vector scan result (`ResultScreen → bottom sheet 
 ### TASK-1.2.C — "No symptoms" path saves a record with 0/8 which looks misleading
 When a user selects "I don't experience any symptoms" it saves `totalSymptoms: 1` (hardcoded), making the history confidence show 0/1 = 0%.
 
-- [ ] Fix: when `_noSymptoms` is true, save `symptomCount: 0, totalSymptoms: 8`
+- [x] Fix: when `_noSymptoms` is true, save `symptomCount: 0, totalSymptoms: 8`
 
 ---
 
@@ -123,11 +123,11 @@ Map shows hardcoded mock sightings only.
 ### TASK-1.3.E — Educational Library
 The `Info` screen only shows one tile (Sighting heatmap) and an "About" blurb. There is **no educational library** about dengue, mosquito species, or prevention.
 
-- [ ] Build an `EducationalLibraryScreen` with sections:
+- [x] Build an `EducationalLibraryScreen` with sections:
   - Mosquito species guide (Aedes aegypti, Aedes albopictus, Culex, Anopheles)
   - Dengue fever overview (symptoms, severity stages)
   - Prevention guidelines (WHO-aligned)
-- [ ] Add it as a second tile in the Info screen
+- [x] Add it as a second tile in the Info screen
 
 ---
 

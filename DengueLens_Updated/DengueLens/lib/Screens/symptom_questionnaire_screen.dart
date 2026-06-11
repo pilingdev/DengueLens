@@ -148,7 +148,7 @@ class _SymptomQuestionnaireScreenState
       MaterialPageRoute(
         builder: (_) => SymptomResultScreen(
           symptomCount: _noSymptoms ? 0 : _selectedCount,
-          totalSymptoms: _noSymptoms ? 1 : _symptoms.length,
+          totalSymptoms: _symptoms.length,
           selectedSymptoms: selected,
           mosquitoType: widget.mosquitoType,
         ),

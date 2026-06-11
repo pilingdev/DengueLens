@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'point_map_screen.dart';
+import 'educational_library_screen.dart';
 
 class DengueLensInfo extends StatelessWidget {
   const DengueLensInfo({super.key});
@@ -66,6 +67,48 @@ class DengueLensInfo extends StatelessWidget {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (context) => const PointMapScreen(),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            elevation: 0,
+            color: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: Colors.grey[200]!),
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE3F2FD),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.menu_book, color: Color(0xFF3498DB)),
+              ),
+              title: const Text(
+                'Educational Library',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              subtitle: Text(
+                'Learn about mosquito species, symptoms, and prevention guidelines.',
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => const EducationalLibraryScreen(),
                   ),
                 );
               },
