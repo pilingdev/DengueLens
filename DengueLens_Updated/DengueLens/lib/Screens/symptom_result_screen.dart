@@ -43,8 +43,7 @@ class SymptomResultScreen extends StatelessWidget {
   String get _summaryText {
     switch (_riskLevel) {
       case 'Low':
-        return 'Your current assessment indicates a '
-            'Low Risk level. No dengue symptoms detected. It is better, but please observe your health and remain cautious. Continue monitoring your health '
+        return 'It is better to observe your health and remain cautious. Continue monitoring your health '
             'and take precautions to avoid further mosquito bites.';
       case 'Moderate':
         return 'Your current assessment indicates a '
@@ -157,7 +156,10 @@ class SymptomResultScreen extends StatelessWidget {
           child: Column(
             children: [
               Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.amber.shade50,
@@ -167,7 +169,11 @@ class SymptomResultScreen extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline, color: Colors.amber.shade800, size: 20),
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.amber.shade800,
+                      size: 20,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -317,12 +323,10 @@ class SymptomResultScreen extends StatelessWidget {
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount:
-                            _homeCareTips.length == 1 ? 1 : 2,
+                        crossAxisCount: _homeCareTips.length == 1 ? 1 : 2,
                         crossAxisSpacing: 12,
                         mainAxisSpacing: 12,
-                        mainAxisExtent:
-                            _homeCareTips.length == 1 ? 124 : 132,
+                        mainAxisExtent: _homeCareTips.length == 1 ? 124 : 132,
                       ),
                       itemCount: _homeCareTips.length,
                       itemBuilder: (context, index) {
@@ -466,11 +470,7 @@ class _CareTipCard extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: accent.withValues(alpha: 0.14),
               ),
-              child: Icon(
-                tip['icon'] as IconData,
-                size: 22,
-                color: accent,
-              ),
+              child: Icon(tip['icon'] as IconData, size: 22, color: accent),
             ),
             const SizedBox(height: 10),
             Text(

@@ -5,7 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import '../models/prediction_result.dart';
 import '../services/tflite_service.dart';
 import 'dengue_lens_history.dart';
-import 'dengue_lens_info.dart';
+import 'educational_library_screen.dart';
 import 'result_screen.dart';
 import 'symptom_questionnaire_screen.dart';
 import 'point_map_screen.dart';
@@ -262,6 +262,13 @@ class _DengueLensHomeState extends State<DengueLensHome> {
               ],
             ),
           ),
+          floatingActionButton: FloatingActionButton.small(
+            onPressed: () {
+              // TODO: Implement user manual navigation
+            },
+            backgroundColor: Colors.white,
+            child: const Icon(Icons.menu_book, color: Color(0xFF2ECC71)),
+          ),
           bottomNavigationBar: NavigationBar(
             backgroundColor: Colors.white,
             indicatorColor: const Color(0xFFE8F5E9),
@@ -291,7 +298,7 @@ class _DengueLensHomeState extends State<DengueLensHome> {
               } else if (index == 4) {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const DengueLensInfo()),
+                  MaterialPageRoute(builder: (context) => const EducationalLibraryScreen()),
                 );
               }
             },
@@ -313,7 +320,7 @@ class _DengueLensHomeState extends State<DengueLensHome> {
                 icon: Icon(Icons.health_and_safety_outlined),
                 label: 'Risk Assessment',
               ),
-              NavigationDestination(icon: Icon(Icons.info_outline), label: 'Info'),
+              NavigationDestination(icon: Icon(Icons.local_library_outlined), label: 'Library'),
             ],
           ),
         ),

@@ -88,6 +88,14 @@ class _SymptomQuestionnaireScreenState
         elevation: 0,
         centerTitle: true,
       ),
+      floatingActionButton: FloatingActionButton.small(
+        heroTag: 'manual_symptoms',
+        onPressed: () {
+          // TODO: Implement user manual navigation
+        },
+        backgroundColor: Colors.white,
+        child: const Icon(Icons.menu_book, color: Color(0xFF2ECC71)),
+      ),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
         child: _showChecklist

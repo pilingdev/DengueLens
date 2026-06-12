@@ -339,6 +339,22 @@ class _PointMapScreenState extends State<PointMapScreen>
             ),
           ),
 
+          // User Manual FAB
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 16.0, right: 16.0),
+                child: FloatingActionButton.small(
+                  heroTag: 'manual_map',
+                  onPressed: () {},
+                  backgroundColor: Colors.white,
+                  child: const Icon(Icons.menu_book, color: Color(0xFF2ECC71)),
+                ),
+              ),
+            ),
+          ),
+
           // Tactical Summary Header
           SafeArea(
             child: Align(

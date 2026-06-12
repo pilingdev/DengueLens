@@ -7,7 +7,7 @@ import '../services/history_service.dart';
 import '../services/tflite_service.dart';
 import '../models/scan_record.dart';
 import 'result_screen.dart';
-import 'dengue_lens_info.dart';
+import 'educational_library_screen.dart';
 import 'symptom_questionnaire_screen.dart';
 import 'point_map_screen.dart';
 
@@ -98,22 +98,38 @@ class _DengueLensHistoryState extends State<DengueLensHistory> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _captureImageFromCamera,
-        backgroundColor: const Color(0xFF2ECC71),
-        elevation: 4,
-        shape: const CircleBorder(),
-        tooltip: 'New Scan',
-        child: _scanning
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2.5,
-                ),
-              )
-            : const Icon(Icons.camera_alt, color: Colors.white),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'manual_history',
+            onPressed: () {
+              // TODO: Implement user manual navigation
+            },
+            backgroundColor: Colors.white,
+            child: const Icon(Icons.menu_book, color: Color(0xFF2ECC71)),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            heroTag: 'camera_history',
+            onPressed: _captureImageFromCamera,
+            backgroundColor: const Color(0xFF2ECC71),
+            elevation: 4,
+            shape: const CircleBorder(),
+            tooltip: 'New Scan',
+            child: _scanning
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2.5,
+                    ),
+                  )
+                : const Icon(Icons.camera_alt, color: Colors.white),
+          ),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         backgroundColor: Colors.white,
@@ -139,7 +155,7 @@ class _DengueLensHistoryState extends State<DengueLensHistory> {
           } else if (index == 4) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const DengueLensInfo()),
+              MaterialPageRoute(builder: (context) => const EducationalLibraryScreen()),
             );
           }
         },
@@ -162,7 +178,7 @@ class _DengueLensHistoryState extends State<DengueLensHistory> {
             icon: Icon(Icons.health_and_safety_outlined),
             label: 'Risk Assessment',
           ),
-          NavigationDestination(icon: Icon(Icons.info_outline), label: 'Info'),
+          NavigationDestination(icon: Icon(Icons.local_library_outlined), label: 'Library'),
         ],
       ),
     );
