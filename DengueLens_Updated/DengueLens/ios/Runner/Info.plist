@@ -47,5 +47,7 @@
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs access to your photo library to select images for dengue analysis.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>DengueLens needs your location to pin dengue vector sightings on the map.</string>
 </dict>
 </plist>

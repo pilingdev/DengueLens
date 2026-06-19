@@ -22,7 +22,9 @@ List<List<List<List<double>>>> imageToInputTensor(img.Image image) {
 }
 
 /// Convert an [img.Image] to the input tensor shape expected by the classifier.
-/// MobileNetV3 expects pixels in the range [0, 255] as float values.
+/// MobileNetV3Small has a built-in Rescaling layer (scale=1/127.5, offset=-1)
+/// that maps raw [0, 255] float pixels → [-1, 1] internally.
+/// Do NOT pre-normalize here — pass raw pixel values directly.
 List<List<List<List<double>>>> imageToClassifierInputTensor(img.Image image) {
   final width = image.width;
   final height = image.height;
@@ -32,7 +34,8 @@ List<List<List<List<double>>>> imageToClassifierInputTensor(img.Image image) {
       height,
       (y) => List.generate(width, (x) {
         final pixel = image.getPixel(x, y);
-        // MobileNetV3 expects [0, 255] floats directly.
+        // Pass raw [0, 255] values. The TFLite model's built-in Rescaling
+        // layer handles normalization to [-1, 1] internally.
         double r = pixel.r.toDouble();
         double g = pixel.g.toDouble();
         double b = pixel.b.toDouble();

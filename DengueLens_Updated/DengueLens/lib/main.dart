@@ -3,9 +3,25 @@ import 'Screens/dengue_lens_home.dart';
 import 'services/tflite_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'services/history_service.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
+  // Sign in anonymously for Firebase Firestore rules
+  try {
+    await FirebaseAuth.instance.signInAnonymously();
+  } catch (e) {
+    debugPrint("Failed to sign in anonymously: $e");
+  }
+
   // Pre-load the TFLite model once so inference is fast
   await TfliteService().init();
   await Hive.initFlutter();

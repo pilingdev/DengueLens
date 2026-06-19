@@ -30,6 +30,10 @@ class TfliteService {
   // YOLOv8 expects 640 × 640 RGB input
   static const int _inputSize = 640;
 
+  /// Maximum number of mosquitoes to detect and classify per image (1–3).
+  /// Detection stops as soon as this many confirmed mosquitoes are found.
+  static const int _maxDetections = 3;
+
   //Initialisation
 
   ///Load the models and label lists from Flutter assets.
@@ -43,7 +47,7 @@ class TfliteService {
     );
 
     // 2. Load MobileNetV3-Small classifier model bytes
-    final classifierData = await rootBundle.load('Model/classifier.tflite');
+    final classifierData = await rootBundle.load('Model/mobilenetv3_mosquito_classifier.tflite');
     _classifierInterpreter = Interpreter.fromBuffer(
       classifierData.buffer.asUint8List(classifierData.offsetInBytes, classifierData.lengthInBytes),
     );
@@ -251,12 +255,20 @@ class TfliteService {
 
     debugPrint('Detector detections (after NMS): ${nmsDetections.length}');
 
+    // Cap to top-N boxes (already sorted highest-confidence first by NMS).
+    // This avoids running the classifier on more boxes than we will ever report.
+    final cappedDetections = nmsDetections.take(_maxDetections).toList();
+    debugPrint('Capped to max $_maxDetections: ${cappedDetections.length} box(es) will be classified');
+
     // 3️⃣ Stage 2: Classifier Inference (MobileNetV3)
     final List<Detection> finalSpeciesDetections = [];
     debugPrint('═══ TfliteService CLASSIFIER INFERENCE ═══');
 
-    for (var i = 0; i < nmsDetections.length; i++) {
-      final det = nmsDetections[i];
+    for (var i = 0; i < cappedDetections.length; i++) {
+      final det = cappedDetections[i];
+
+      // Hard stop: we already have the maximum number of confirmed detections.
+      if (finalSpeciesDetections.length >= _maxDetections) break;
       final box = det.boundingBox;
 
       final int x = box.left.round();
@@ -312,13 +324,12 @@ class TfliteService {
         continue;
       }
 
-      // Compute joint confidence: detector confidence * classifier confidence
-      final double jointConfidence = det.confidence * maxProb;
+      // Use only the classifier confidence score as requested
+      final double jointConfidence = maxProb;
 
       debugPrint('  Accepting box $i: Classified as $speciesLabel '
           '(detectorScore=${(det.confidence * 100).toStringAsFixed(1)}%, '
-          'classifierScore=${(maxProb * 100).toStringAsFixed(1)}%, '
-          'jointScore=${(jointConfidence * 100).toStringAsFixed(1)}%)');
+          'classifierScore=${(maxProb * 100).toStringAsFixed(1)}%)');
 
       finalSpeciesDetections.add(
         Detection(

@@ -6,6 +6,8 @@ import 'package:image/image.dart' as img;
 import '../models/prediction_result.dart';
 import '../models/scan_record.dart';
 import '../services/history_service.dart';
+import '../services/location_service.dart';
+import '../services/sighting_upload_service.dart';
 import 'symptom_questionnaire_screen.dart';
 
 class ResultScreen extends StatefulWidget {
@@ -97,9 +99,15 @@ class _ResultScreenState extends State<ResultScreen> {
     }
   }
 
-  void _recordResult() {
+  void _recordResult() async {
     final normalized = widget.result.toLowerCase();
     final isPositive = normalized == 'positive';
+
+    // 1. Get GPS
+    final pos = await LocationService().getCurrentPosition();
+    final locString = pos != null ? LocationService().toLocationString(pos) : null;
+
+    // 2. Save locally
     HistoryService().addRecord(
       ScanRecord(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -108,12 +116,27 @@ class _ResultScreenState extends State<ResultScreen> {
         confidence: widget.confidence,
         date: widget.testDate,
         imageFile: widget.imagePath,
+        location: locString, // Save real GPS locally
         detectionCount: widget.savedDetectionCount ?? (widget.detections?.length ?? 1),
         detections: widget.detections,
         imageWidth: widget.imageSize?.width,
         imageHeight: widget.imageSize?.height,
       ),
     );
+
+    // 3. Upload to Firestore if dengue vector + GPS available
+    if (pos != null && isPositive) {
+      final species = widget.mosquitoType.toLowerCase().contains('aegypti')
+          ? 'aegypti' : 'albopictus';
+      await SightingUploadService().upload(
+        species: species,
+        lat: pos.latitude,
+        lng: pos.longitude,
+        confidence: widget.confidence,
+        timestamp: widget.testDate,
+      );
+    }
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

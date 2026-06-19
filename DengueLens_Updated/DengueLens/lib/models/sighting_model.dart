@@ -9,6 +9,7 @@ class Sighting {
   final DateTime timestamp;
   final double distance; // distance from user in meters
   final String bearing; // e.g., 'NW', 'SE'
+  final bool isOwnSighting; // whether the current user made this scan
 
   Sighting({
     required this.id,
@@ -17,6 +18,7 @@ class Sighting {
     required this.timestamp,
     required this.distance,
     required this.bearing,
+    this.isOwnSighting = false,
   });
 
   // Calculate age of the sighting in minutes

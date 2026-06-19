@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'dart:math' as math;
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/sighting_model.dart';
-import '../services/history_service.dart';
+import '../services/location_service.dart';
+import '../services/connectivity_service.dart';
+import '../services/sighting_feed_service.dart';
 
 class PointMapScreen extends StatefulWidget {
   const PointMapScreen({super.key});
@@ -14,67 +17,117 @@ class PointMapScreen extends StatefulWidget {
   State<PointMapScreen> createState() => _PointMapScreenState();
 }
 
-class _PointMapScreenState extends State<PointMapScreen>
-    with TickerProviderStateMixin {
+class _PointMapScreenState extends State<PointMapScreen> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
+  
+  bool _isOffline = false;
+  bool _isLocating = true;
+  LatLng? _userLocation;
+  
+  StreamSubscription? _sightingsSub;
+  List<Sighting> _allSightings = [];
+  bool _showNearOnly = false; // Filter toggle
 
-  final LatLng _userLocation = const LatLng(3.1390, 101.6869);
-
-  late List<Sighting> _sightings;
+  // Hardcoded fallback location (Kuala Lumpur)
+  final LatLng _fallbackLocation = const LatLng(3.1390, 101.6869);
 
   @override
   void initState() {
     super.initState();
-    _sightings = _loadSightings();
+    _initMapData();
   }
 
-  List<Sighting> _loadSightings() {
-    final records = HistoryService().records;
-    final List<Sighting> sightings = [];
-    final random = math.Random();
-    
-    for (final record in records) {
-      final mosquitoLower = record.mosquitoType.toLowerCase();
-      Species? species;
-      if (mosquitoLower.contains('aegypti')) {
-        species = Species.aegypti;
-      } else if (mosquitoLower.contains('albopictus')) {
-        species = Species.albopictus;
+  @override
+  void dispose() {
+    _sightingsSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _initMapData() async {
+    setState(() {
+      _isLocating = true;
+    });
+
+    // 1. Check internet
+    final hasInternet = await ConnectivityService().hasInternetAccess();
+    if (!hasInternet) {
+      if (mounted) {
+        setState(() {
+          _isOffline = true;
+          _isLocating = false;
+        });
       }
-      
-      if (species != null) {
-        // Use real location if available, otherwise mock an offset from _userLocation
-        LatLng loc = _userLocation;
-        if (record.location != null && record.location!.contains(',')) {
-          try {
-            final parts = record.location!.split(',');
-            loc = LatLng(double.parse(parts[0]), double.parse(parts[1]));
-          } catch (e) {
-            // fallback to _userLocation
-          }
-        } else {
-          // generate a small random offset around user location if no location
-          final latOffset = (random.nextDouble() - 0.5) * 0.002;
-          final lngOffset = (random.nextDouble() - 0.5) * 0.002;
-          loc = LatLng(_userLocation.latitude + latOffset, _userLocation.longitude + lngOffset);
-        }
-        
-        // Mock distance and bearing since we don't have real distance calc yet
-        final distance = random.nextDouble() * 100 + 10; // 10-110m
-        final bearings = ['NW', 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W'];
-        final bearing = bearings[random.nextInt(bearings.length)];
-        
-        sightings.add(Sighting(
-          id: record.id,
-          species: species,
-          location: loc,
-          timestamp: record.date,
-          distance: distance,
-          bearing: bearing,
-        ));
+      return;
+    } else {
+      if (mounted) {
+        setState(() {
+          _isOffline = false;
+        });
       }
     }
-    return sightings;
+
+    // 2. Get GPS Location
+    await _fetchUserLocation();
+  }
+
+  Future<void> _fetchUserLocation() async {
+    if (!mounted) return;
+    setState(() => _isLocating = true);
+
+    final pos = await LocationService().getCurrentPosition();
+    if (pos != null) {
+      _userLocation = LatLng(pos.latitude, pos.longitude);
+    } else {
+      _userLocation = _fallbackLocation;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Location unavailable, showing default area')),
+        );
+      }
+    }
+
+    if (mounted) {
+      setState(() => _isLocating = false);
+    }
+
+    // Center the map
+    if (_userLocation != null) {
+      _listenToSightings();
+      
+      // Defer the move until the FlutterMap widget has actually rendered
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          try {
+            _mapController.move(_userLocation!, 17.5);
+          } catch (_) {
+            // Ignored: If it still hasn't rendered, initialCenter handles the initial load anyway.
+          }
+        }
+      });
+    }
+  }
+
+  void _listenToSightings() {
+    if (_userLocation == null) return;
+    
+    _sightingsSub?.cancel();
+    // Fetch sightings within roughly 5000m to allow the "All" view to show something, 
+    // and then filter to 100m when toggled. (For a global map, we might fetch differently).
+    // Let's fetch 1000m for this view to avoid massive data downloads.
+    _sightingsSub = SightingFeedService()
+        .sightingsNear(_userLocation!, radiusM: 1000)
+        .listen((sightings) {
+      if (mounted) {
+        setState(() {
+          _allSightings = sightings;
+        });
+      }
+    });
+  }
+
+  List<Sighting> get _filteredSightings {
+    if (!_showNearOnly) return _allSightings;
+    return _allSightings.where((s) => s.distance <= 100).toList();
   }
 
   void _showFocusState(Sighting sighting) {
@@ -142,15 +195,37 @@ class _PointMapScreenState extends State<PointMapScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              sighting.species == Species.aegypti
-                                  ? 'Aedes aegypti'
-                                  : 'Aedes albopictus',
-                              style: GoogleFonts.inter(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  sighting.species == Species.aegypti
+                                      ? 'Aedes aegypti'
+                                      : 'Aedes albopictus',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                if (sighting.isOwnSighting)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF2ECC71).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: const Color(0xFF2ECC71).withOpacity(0.3)),
+                                    ),
+                                    child: Text(
+                                      'My Scan',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: const Color(0xFF2ECC71),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                             const SizedBox(height: 8),
                             Row(
@@ -215,10 +290,32 @@ class _PointMapScreenState extends State<PointMapScreen>
 
   @override
   Widget build(BuildContext context) {
-    int activeClusters = _sightings
+    if (_isOffline) {
+      return _buildOfflineBanner();
+    }
+
+    if (_isLocating && _userLocation == null) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF8F9FA),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Color(0xFF2ECC71)),
+              SizedBox(height: 16),
+              Text('Acquiring Location...', style: TextStyle(color: Colors.black54)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final sightingsToDisplay = _filteredSightings;
+
+    int activeClusters = sightingsToDisplay
         .where((s) => s.ageInMinutes < 24 * 60)
         .length;
-    int recentSightings = _sightings
+    int recentSightings = sightingsToDisplay
         .where((s) => s.ageInMinutes < 60)
         .length;
 
@@ -230,7 +327,7 @@ class _PointMapScreenState extends State<PointMapScreen>
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: _userLocation,
+              initialCenter: _userLocation ?? _fallbackLocation,
               initialZoom: 17.5,
               interactionOptions: const InteractionOptions(
                 flags: InteractiveFlag.all,
@@ -244,56 +341,58 @@ class _PointMapScreenState extends State<PointMapScreen>
                 subdomains: const ['a', 'b', 'c', 'd'],
               ),
 
-              // Range Rings
-              CircleLayer(
-                circles: [
-                  CircleMarker(
-                    point: _userLocation,
-                    color: const Color(0xFF2ECC71).withOpacity(0.05),
-                    borderColor: const Color(0xFF2ECC71).withOpacity(0.3),
-                    borderStrokeWidth: 1.5,
-                    radius: 100, // 100m ring
-                    useRadiusInMeter: true,
-                  ),
-                  CircleMarker(
-                    point: _userLocation,
-                    color: const Color(0xFF2ECC71).withOpacity(0.08),
-                    borderColor: const Color(0xFF2ECC71).withOpacity(0.4),
-                    borderStrokeWidth: 1.5,
-                    radius: 50, // 50m ring
-                    useRadiusInMeter: true,
-                  ),
-                ],
-              ),
+              if (_userLocation != null) ...[
+                // Range Rings
+                CircleLayer(
+                  circles: [
+                    CircleMarker(
+                      point: _userLocation!,
+                      color: const Color(0xFF2ECC71).withOpacity(0.05),
+                      borderColor: const Color(0xFF2ECC71).withOpacity(0.3),
+                      borderStrokeWidth: 1.5,
+                      radius: 100, // 100m ring
+                      useRadiusInMeter: true,
+                    ),
+                    CircleMarker(
+                      point: _userLocation!,
+                      color: const Color(0xFF2ECC71).withOpacity(0.08),
+                      borderColor: const Color(0xFF2ECC71).withOpacity(0.4),
+                      borderStrokeWidth: 1.5,
+                      radius: 50, // 50m ring
+                      useRadiusInMeter: true,
+                    ),
+                  ],
+                ),
 
-              // User Location Dot
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: _userLocation,
-                    width: 14,
-                    height: 14,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2ECC71),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF2ECC71).withOpacity(0.5),
-                            blurRadius: 8,
-                            spreadRadius: 2,
-                          ),
-                        ],
+                // User Location Dot
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: _userLocation!,
+                      width: 14,
+                      height: 14,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3498DB), // Blue for user
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF3498DB).withOpacity(0.5),
+                              blurRadius: 8,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
 
               // Sighting Markers (Heat Zones)
               MarkerLayer(
-                markers: _sightings.map((sighting) {
+                markers: sightingsToDisplay.map((sighting) {
                   return Marker(
                     point: sighting.location,
                     width: 40,
@@ -339,61 +438,104 @@ class _PointMapScreenState extends State<PointMapScreen>
             ),
           ),
 
-          // User Manual FAB
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 16.0, right: 16.0),
-                child: FloatingActionButton.small(
-                  heroTag: 'manual_map',
-                  onPressed: () {},
-                  backgroundColor: Colors.white,
-                  child: const Icon(Icons.menu_book, color: Color(0xFF2ECC71)),
-                ),
-              ),
-            ),
-          ),
-
-          // Tactical Summary Header
+          // Tactical Summary Header & Filter Toggle
           SafeArea(
             child: Align(
               alignment: Alignment.topCenter,
               child: Padding(
                 padding: const EdgeInsets.only(top: 16.0),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9), // Glassmorphism white
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(
-                      color: const Color(0xFF2ECC71).withOpacity(0.2),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
                       ),
-                    ],
-                  ),
-                  child: Text(
-                    '$activeClusters Active | $recentSightings Recent',
-                    style: GoogleFonts.inter(
-                      color: const Color(0xFF2ECC71), // Brand Green
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.95),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color: const Color(0xFF2ECC71).withOpacity(0.2),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        '$activeClusters Active | $recentSightings Recent',
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFF2ECC71),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    // Filter Toggle
+                    Container(
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: ToggleButtons(
+                        borderRadius: BorderRadius.circular(20),
+                        isSelected: [!_showNearOnly, _showNearOnly],
+                        onPressed: (int index) {
+                          setState(() {
+                            _showNearOnly = index == 1;
+                          });
+                        },
+                        color: Colors.black54,
+                        selectedColor: Colors.white,
+                        fillColor: const Color(0xFF2ECC71),
+                        textStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold),
+                        constraints: const BoxConstraints(minHeight: 36, minWidth: 90),
+                        children: const [
+                          Text('All'),
+                          Text('< 100m'),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
 
-          // Permanent Bottom Legend (Green & White Theme)
+          // Recenter FAB
+          SafeArea(
+            child: Align(
+              alignment: Alignment.bottomRight,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 90.0, right: 16.0),
+                child: FloatingActionButton(
+                  heroTag: 'recenter_map',
+                  onPressed: () async {
+                    await _fetchUserLocation();
+                  },
+                  backgroundColor: Colors.white,
+                  child: _isLocating 
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.my_location, color: Color(0xFF3498DB)),
+                ),
+              ),
+            ),
+          ),
+
+          // Permanent Bottom Legend
           Positioned(
             bottom: 20,
             left: 20,
@@ -421,19 +563,13 @@ class _PointMapScreenState extends State<PointMapScreen>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildLegendItem(
-                      'A. aegypti',
-                      const Color(0xFF2ECC71),
-                    ), // Main Green
+                    _buildLegendItem('A. aegypti', const Color(0xFF2ECC71)),
                     Container(
                       width: 1,
                       height: 30,
                       color: Colors.grey.withOpacity(0.2),
                     ),
-                    _buildLegendItem(
-                      'A. albopictus',
-                      const Color(0xFFF59E0B),
-                    ), // Warm Amber
+                    _buildLegendItem('A. albopictus', const Color(0xFFF59E0B)),
                   ],
                 ),
               ),
@@ -480,7 +616,7 @@ class _PointMapScreenState extends State<PointMapScreen>
               decoration: const BoxDecoration(
                 color: Color(0xFFB0BEC5),
                 shape: BoxShape.circle,
-              ), // Light Grey
+              ),
             ),
             const SizedBox(width: 4),
             Text(
@@ -490,6 +626,64 @@ class _PointMapScreenState extends State<PointMapScreen>
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildOfflineBanner() {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.wifi_off_rounded, size: 80, color: Colors.grey[400]),
+              const SizedBox(height: 24),
+              Text(
+                'No Internet Connection',
+                style: GoogleFonts.inter(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'The pinpoint map requires an active internet connection to load map tiles and real-time crowd-sourced sightings.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  color: Colors.black54,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: _initMapData,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry Connection'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2ECC71),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -503,8 +697,7 @@ class SightingMarker extends StatefulWidget {
   State<SightingMarker> createState() => _SightingMarkerState();
 }
 
-class _SightingMarkerState extends State<SightingMarker>
-    with SingleTickerProviderStateMixin {
+class _SightingMarkerState extends State<SightingMarker> with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _scaleAnimation;
 
@@ -553,23 +746,37 @@ class _SightingMarkerState extends State<SightingMarker>
     }
 
     Widget marker = Center(
-      child: Container(
-        width: 30,
-        height: 30,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: finalColor.withOpacity(opacity * 0.4),
-          border: Border.all(color: finalColor.withOpacity(opacity), width: 2),
-          boxShadow: opacity > 0.5
-              ? [
-                  BoxShadow(
-                    color: finalColor.withOpacity(opacity * 0.6),
-                    blurRadius: 12,
-                    spreadRadius: 2,
-                  ),
-                ]
-              : [],
-        ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: finalColor.withOpacity(opacity * 0.4),
+              border: Border.all(color: finalColor.withOpacity(opacity), width: 2),
+              boxShadow: opacity > 0.5
+                  ? [
+                      BoxShadow(
+                        color: finalColor.withOpacity(opacity * 0.6),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                      ),
+                    ]
+                  : [],
+            ),
+          ),
+          if (widget.sighting.isOwnSighting)
+            Container(
+              width: 10,
+              height: 10,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+            )
+        ],
       ),
     );
 

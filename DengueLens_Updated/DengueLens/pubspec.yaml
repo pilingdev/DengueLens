@@ -49,7 +49,12 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   path_provider: ^2.1.2
-
+  geolocator: ^13.0.4
+  connectivity_plus: ^6.1.4
+  http: ^1.4.0
+  firebase_core: ^3.13.1
+  firebase_auth: ^5.5.4 
+  cloud_firestore: ^5.6.7
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -75,7 +80,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - Model/yolov8n_detector.tflite
-    - Model/classifier.tflite
+    - Model/mobilenetv3_mosquito_classifier.tflite
     - Model/labels_detector.txt
     - Model/labels_classifier.txt
 
