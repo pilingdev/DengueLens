@@ -151,12 +151,44 @@ class _ResultScreenState extends State<ResultScreen> {
   void initState() {
     super.initState();
     _prepareDisplayImage();
-    // Show bottom sheet if any dengue carrier detected
+    // Show bottom sheet if any dengue carrier detected, or alert if no mosquito
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_hasAnyDengueVector) {
         _showBittenBottomSheet();
+      } else if (_overlayDetections.isEmpty) {
+        _showNoMosquitoPrompt();
       }
     });
+  }
+
+  void _showNoMosquitoPrompt() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue.shade700),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('No Mosquito Detected', style: TextStyle(fontSize: 18)),
+              ),
+            ],
+          ),
+          content: const Text(
+            'We could not detect any mosquito in the provided image. Please try again with a clearer image if you believe a mosquito is present.',
+            style: TextStyle(fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildImageWithOverlay(Color resultColor) {
