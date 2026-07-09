@@ -4,11 +4,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import '../models/prediction_result.dart';
 import '../services/tflite_service.dart';
+import '../services/tutorial_service.dart';
 import 'dengue_lens_history.dart';
 import 'educational_library_screen.dart';
 import 'result_screen.dart';
 import 'symptom_questionnaire_screen.dart';
 import 'point_map_screen.dart';
+import 'tutorial_overlay.dart';
 
 class DengueLensHome extends StatefulWidget {
   const DengueLensHome({super.key});
@@ -20,6 +22,73 @@ class DengueLensHome extends StatefulWidget {
 class _DengueLensHomeState extends State<DengueLensHome> {
   bool _isProcessing = false;
   String? _processingImagePath; // shown in loading overlay
+  bool _showTutorial = false;
+
+  // GlobalKeys for tutorial spotlight targets
+  final GlobalKey _scanButtonKey = GlobalKey();
+  final GlobalKey _uploadButtonKey = GlobalKey();
+  final GlobalKey _navBarKey = GlobalKey();
+  final GlobalKey _fabKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    // Show tutorial on first launch after the frame renders
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!TutorialService().hasSeenTutorial && mounted) {
+        setState(() => _showTutorial = true);
+      }
+    });
+  }
+
+  /// Shows a confirmation dialog and replays the tutorial if confirmed.
+  void _showReplayConfirmation() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.school_outlined, color: Color(0xFF2ECC71), size: 26),
+            SizedBox(width: 10),
+            Text('Replay Tutorial?',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87)),
+          ],
+        ),
+        content: const Text(
+          'This will show the app tutorial again so you can revisit all features.',
+          style: TextStyle(fontSize: 14, color: Colors.black54, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600, color: Colors.grey[500])),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              TutorialService().resetTutorial();
+              setState(() => _showTutorial = true);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2ECC71),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Replay',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
 
   /// Best detection box for overlay (matches [PredictionResult.displayName] priority).
   Rect? _primaryBoundingBox(PredictionResult prediction) {
@@ -188,11 +257,11 @@ class _DengueLensHomeState extends State<DengueLensHome> {
                           const SizedBox(height: 40),
 
                           // Primary Action - Scan Button
-                          ScanButton(onTap: _captureImageFromCamera),
+                          ScanButton(key: _scanButtonKey, onTap: _captureImageFromCamera),
 
                           const SizedBox(height: 24),
                           // Secondary Action - Upload
-                          UploadButton(onPressed: _pickImageFromGallery),
+                          UploadButton(key: _uploadButtonKey, onPressed: _pickImageFromGallery),
 
                           const SizedBox(height: 24),
 
@@ -263,13 +332,14 @@ class _DengueLensHomeState extends State<DengueLensHome> {
             ),
           ),
           floatingActionButton: FloatingActionButton.small(
-            onPressed: () {
-              // TODO: Implement user manual navigation
-            },
+            key: _fabKey,
+            onPressed: _showReplayConfirmation,
             backgroundColor: Colors.white,
-            child: const Icon(Icons.menu_book, color: Color(0xFF2ECC71)),
+            tooltip: 'Replay Tutorial',
+            child: const Icon(Icons.school_outlined, color: Color(0xFF2ECC71)),
           ),
           bottomNavigationBar: NavigationBar(
+            key: _navBarKey,
             backgroundColor: Colors.white,
             indicatorColor: const Color(0xFFE8F5E9),
             selectedIndex: 0,
@@ -380,6 +450,18 @@ class _DengueLensHomeState extends State<DengueLensHome> {
                 ],
               ),
             ),
+          ),
+
+        // ── Onboarding Tutorial Overlay ────────────────────────────────
+        if (_showTutorial)
+          TutorialOverlay(
+            scanKey: _scanButtonKey,
+            uploadKey: _uploadButtonKey,
+            navBarKey: _navBarKey,
+            fabKey: _fabKey,
+            onDismiss: () {
+              if (mounted) setState(() => _showTutorial = false);
+            },
           ),
       ],
     );

@@ -3,6 +3,9 @@ import 'Screens/dengue_lens_home.dart';
 import 'services/tflite_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'services/history_service.dart';
+import 'services/tutorial_service.dart';
+import 'services/upload_queue_service.dart';
+import 'services/connectivity_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -26,6 +29,12 @@ void main() async {
   await TfliteService().init();
   await Hive.initFlutter();
   await HistoryService().init();
+  await TutorialService().init();
+  
+  // Initialize connectivity and offline upload queue
+  ConnectivityService().init();
+  await UploadQueueService().init();
+  
   runApp(const DengueLensApp());
 }
 

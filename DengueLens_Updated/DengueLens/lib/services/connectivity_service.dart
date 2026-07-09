@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:http/http.dart' as http;
 
@@ -5,6 +6,16 @@ class ConnectivityService {
   static final ConnectivityService _instance = ConnectivityService._internal();
   factory ConnectivityService() => _instance;
   ConnectivityService._internal();
+
+  final _connectivityStreamController = StreamController<bool>.broadcast();
+  Stream<bool> get connectivityStream => _connectivityStreamController.stream;
+
+  void init() {
+    Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) async {
+      bool hasInternet = await hasInternetAccess();
+      _connectivityStreamController.add(hasInternet);
+    });
+  }
 
   /// Checks if the device has an active internet connection.
   /// It verifies both the network interface and actual reachability via a lightweight HTTP ping.

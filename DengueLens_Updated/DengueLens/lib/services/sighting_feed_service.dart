@@ -18,7 +18,8 @@ class SightingFeedService {
     // ~111.32 km per degree of latitude
     final double latDelta = radiusM / 111320.0;
     // Longitude length varies with latitude
-    final double lngDelta = radiusM / (111320.0 * math.cos(center.latitudeInRad));
+    final double lngDelta =
+        radiusM / (111320.0 * math.cos(center.latitudeInRad));
 
     final double minLat = center.latitude - latDelta;
     final double maxLat = center.latitude + latDelta;
@@ -33,50 +34,59 @@ class SightingFeedService {
         .collection('sightings')
         .where('lat', isGreaterThanOrEqualTo: minLat)
         .where('lat', isLessThanOrEqualTo: maxLat)
-        .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo))
+        .where(
+          'timestamp',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo),
+        )
         .orderBy('lat')
         .snapshots()
         .map((snapshot) {
-      final List<Sighting> validSightings = [];
+          final List<Sighting> validSightings = [];
 
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        final double lng = data['lng'] as double;
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final double lng = data['lng'] as double;
 
-        // 3. Client-side longitude filter
-        if (lng >= minLng && lng <= maxLng) {
-          final latLng = LatLng(data['lat'] as double, lng);
-          
-          // 4. True Haversine distance filter (to get a circle, not a square box)
-          final distance = distanceCalc.as(LengthUnit.Meter, center, latLng);
-          if (distance <= radiusM) {
-            
-            // Map Firestore data to Sighting model
-            Species species = Species.aegypti;
-            if (data['species'] == 'albopictus') {
-              species = Species.albopictus;
+            // 3. Client-side longitude filter
+            if (lng >= minLng && lng <= maxLng) {
+              final latLng = LatLng(data['lat'] as double, lng);
+
+              // 4. True Haversine distance filter (to get a circle, not a square box)
+              final distance = distanceCalc.as(
+                LengthUnit.Meter,
+                center,
+                latLng,
+              );
+              if (distance <= radiusM) {
+                // Map Firestore data to Sighting model
+                Species species = Species.aegypti;
+                if (data['species'] == 'albopictuFs') {
+                  species = Species.albopictus;
+                }
+
+                // Optional: calculate bearing
+                final bearing = _getBearingString(center, latLng);
+
+                final timestamp = (data['timestamp'] as Timestamp).toDate();
+                final isOwnSighting =
+                    data['userId'] == FirebaseAuth.instance.currentUser?.uid;
+
+                validSightings.add(
+                  Sighting(
+                    id: doc.id,
+                    species: species,
+                    location: latLng,
+                    timestamp: timestamp,
+                    distance: distance,
+                    bearing: bearing,
+                    isOwnSighting: isOwnSighting,
+                  ),
+                );
+              }
             }
-            
-            // Optional: calculate bearing
-            final bearing = _getBearingString(center, latLng);
-            
-            final timestamp = (data['timestamp'] as Timestamp).toDate();
-            final isOwnSighting = data['userId'] == FirebaseAuth.instance.currentUser?.uid;
-
-            validSightings.add(Sighting(
-              id: doc.id,
-              species: species,
-              location: latLng,
-              timestamp: timestamp,
-              distance: distance,
-              bearing: bearing,
-              isOwnSighting: isOwnSighting,
-            ));
           }
-        }
-      }
-      return validSightings;
-    });
+          return validSightings;
+        });
   }
 
   String _getBearingString(LatLng center, LatLng target) {
@@ -84,7 +94,7 @@ class SightingFeedService {
     final dy = target.latitude - center.latitude;
     final dx = target.longitude - center.longitude;
     final angle = math.atan2(dy, dx) * 180 / math.pi;
-    
+
     if (angle >= -22.5 && angle < 22.5) return 'E';
     if (angle >= 22.5 && angle < 67.5) return 'NE';
     if (angle >= 67.5 && angle < 112.5) return 'N';

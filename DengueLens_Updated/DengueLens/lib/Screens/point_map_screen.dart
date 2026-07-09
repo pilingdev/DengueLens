@@ -17,13 +17,14 @@ class PointMapScreen extends StatefulWidget {
   State<PointMapScreen> createState() => _PointMapScreenState();
 }
 
-class _PointMapScreenState extends State<PointMapScreen> with TickerProviderStateMixin {
+class _PointMapScreenState extends State<PointMapScreen>
+    with TickerProviderStateMixin {
   final MapController _mapController = MapController();
-  
+
   bool _isOffline = false;
   bool _isLocating = true;
   LatLng? _userLocation;
-  
+
   StreamSubscription? _sightingsSub;
   List<Sighting> _allSightings = [];
   bool _showNearOnly = false; // Filter toggle
@@ -81,7 +82,9 @@ class _PointMapScreenState extends State<PointMapScreen> with TickerProviderStat
       _userLocation = _fallbackLocation;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Location unavailable, showing default area')),
+          const SnackBar(
+            content: Text('Location unavailable, showing default area'),
+          ),
         );
       }
     }
@@ -93,7 +96,7 @@ class _PointMapScreenState extends State<PointMapScreen> with TickerProviderStat
     // Center the map
     if (_userLocation != null) {
       _listenToSightings();
-      
+
       // Defer the move until the FlutterMap widget has actually rendered
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -109,20 +112,20 @@ class _PointMapScreenState extends State<PointMapScreen> with TickerProviderStat
 
   void _listenToSightings() {
     if (_userLocation == null) return;
-    
+
     _sightingsSub?.cancel();
-    // Fetch sightings within roughly 5000m to allow the "All" view to show something, 
+    // Fetch sightings within roughly 5000m to allow the "All" view to show something,
     // and then filter to 100m when toggled. (For a global map, we might fetch differently).
     // Let's fetch 1000m for this view to avoid massive data downloads.
     _sightingsSub = SightingFeedService()
         .sightingsNear(_userLocation!, radiusM: 1000)
         .listen((sightings) {
-      if (mounted) {
-        setState(() {
-          _allSightings = sightings;
+          if (mounted) {
+            setState(() {
+              _allSightings = sightings;
+            });
+          }
         });
-      }
-    });
   }
 
   List<Sighting> get _filteredSightings {
@@ -210,11 +213,20 @@ class _PointMapScreenState extends State<PointMapScreen> with TickerProviderStat
                                 ),
                                 if (sighting.isOwnSighting)
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF2ECC71).withOpacity(0.1),
+                                      color: const Color(
+                                        0xFF2ECC71,
+                                      ).withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: const Color(0xFF2ECC71).withOpacity(0.3)),
+                                      border: Border.all(
+                                        color: const Color(
+                                          0xFF2ECC71,
+                                        ).withOpacity(0.3),
+                                      ),
                                     ),
                                     child: Text(
                                       'My Scan',
@@ -303,7 +315,10 @@ class _PointMapScreenState extends State<PointMapScreen> with TickerProviderStat
             children: [
               CircularProgressIndicator(color: Color(0xFF2ECC71)),
               SizedBox(height: 16),
-              Text('Acquiring Location...', style: TextStyle(color: Colors.black54)),
+              Text(
+                'Acquiring Location...',
+                style: TextStyle(color: Colors.black54),
+              ),
             ],
           ),
         ),
@@ -501,12 +516,15 @@ class _PointMapScreenState extends State<PointMapScreen> with TickerProviderStat
                         color: Colors.black54,
                         selectedColor: Colors.white,
                         fillColor: const Color(0xFF2ECC71),
-                        textStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold),
-                        constraints: const BoxConstraints(minHeight: 36, minWidth: 90),
-                        children: const [
-                          Text('All'),
-                          Text('< 100m'),
-                        ],
+                        textStyle: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        constraints: const BoxConstraints(
+                          minHeight: 36,
+                          minWidth: 90,
+                        ),
+                        children: const [Text('All'), Text('< 100m')],
                       ),
                     ),
                   ],
@@ -527,8 +545,12 @@ class _PointMapScreenState extends State<PointMapScreen> with TickerProviderStat
                     await _fetchUserLocation();
                   },
                   backgroundColor: Colors.white,
-                  child: _isLocating 
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  child: _isLocating
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Icon(Icons.my_location, color: Color(0xFF3498DB)),
                 ),
               ),
@@ -674,7 +696,10 @@ class _PointMapScreenState extends State<PointMapScreen> with TickerProviderStat
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2ECC71),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
                   ),
@@ -697,7 +722,8 @@ class SightingMarker extends StatefulWidget {
   State<SightingMarker> createState() => _SightingMarkerState();
 }
 
-class _SightingMarkerState extends State<SightingMarker> with SingleTickerProviderStateMixin {
+class _SightingMarkerState extends State<SightingMarker>
+    with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _scaleAnimation;
 
@@ -755,7 +781,10 @@ class _SightingMarkerState extends State<SightingMarker> with SingleTickerProvid
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: finalColor.withOpacity(opacity * 0.4),
-              border: Border.all(color: finalColor.withOpacity(opacity), width: 2),
+              border: Border.all(
+                color: finalColor.withOpacity(opacity),
+                width: 2,
+              ),
               boxShadow: opacity > 0.5
                   ? [
                       BoxShadow(
@@ -775,7 +804,7 @@ class _SightingMarkerState extends State<SightingMarker> with SingleTickerProvid
                 color: Colors.white,
                 shape: BoxShape.circle,
               ),
-            )
+            ),
         ],
       ),
     );

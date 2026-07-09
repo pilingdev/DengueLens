@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:image/image.dart' as img;
 import '../models/prediction_result.dart';
 import '../models/scan_record.dart';
+import '../services/connectivity_service.dart';
 import '../services/history_service.dart';
 import '../services/location_service.dart';
 import '../services/sighting_upload_service.dart';
@@ -47,6 +48,12 @@ class ResultScreen extends StatefulWidget {
 class _ResultScreenState extends State<ResultScreen> {
   static const Color _blue = Color(0xFF3498DB);
   Uint8List? _displayBytes;
+
+  // Duplicate-prevention & loading flags
+  bool _isRecorded = false;
+  bool _isShared = false;
+  bool _isRecording = false;
+  bool _isSharing = false;
 
   String _normalizedDetectionLabel(String rawType) {
     final lower = rawType.toLowerCase();
@@ -99,35 +106,83 @@ class _ResultScreenState extends State<ResultScreen> {
     }
   }
 
+  /// Saves the scan result to local history (Hive) only.
   void _recordResult() async {
-    final normalized = widget.result.toLowerCase();
-    final isPositive = normalized == 'positive';
+    if (_isRecorded || _isRecording) return;
+    setState(() => _isRecording = true);
 
-    // 1. Get GPS
-    final pos = await LocationService().getCurrentPosition();
-    final locString = pos != null ? LocationService().toLocationString(pos) : null;
+    try {
+      final normalized = widget.result.toLowerCase();
+      final isPositive = normalized == 'positive';
 
-    // 2. Save locally
-    HistoryService().addRecord(
-      ScanRecord(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        mosquitoType: widget.mosquitoType,
-        result: isPositive ? 'Dengue vector' : 'Not a dengue vector',
-        confidence: widget.confidence,
-        date: widget.testDate,
-        imageFile: widget.imagePath,
-        location: locString, // Save real GPS locally
-        detectionCount: widget.savedDetectionCount ?? (widget.detections?.length ?? 1),
-        detections: widget.detections,
-        imageWidth: widget.imageSize?.width,
-        imageHeight: widget.imageSize?.height,
-      ),
-    );
+      // 1. Get GPS for the local record
+      final pos = await LocationService().getCurrentPosition();
+      final locString =
+          pos != null ? LocationService().toLocationString(pos) : null;
 
-    // 3. Upload to Firestore if dengue vector + GPS available
-    if (pos != null && isPositive) {
+      // 2. Save locally only
+      await HistoryService().addRecord(
+        ScanRecord(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          mosquitoType: widget.mosquitoType,
+          result: isPositive ? 'Dengue vector' : 'Not a dengue vector',
+          confidence: widget.confidence,
+          date: widget.testDate,
+          imageFile: widget.imagePath,
+          location: locString,
+          detectionCount:
+              widget.savedDetectionCount ?? (widget.detections?.length ?? 1),
+          detections: widget.detections,
+          imageWidth: widget.imageSize?.width,
+          imageHeight: widget.imageSize?.height,
+        ),
+      );
+
+      if (mounted) {
+        setState(() => _isRecorded = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Result saved to history'),
+            backgroundColor: Color(0xFF2ECC71),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isRecording = false);
+    }
+  }
+
+  /// Uploads the dengue vector sighting to Firestore (shared on the map).
+  void _shareResult() async {
+    if (_isShared || _isSharing) return;
+    setState(() => _isSharing = true);
+
+    try {
+      // 1. Check internet connectivity
+      final hasInternet = await ConnectivityService().hasInternetAccess();
+      if (!hasInternet) {
+        if (mounted) _showNoInternetDialog();
+        return;
+      }
+
+      // 2. Get GPS
+      final pos = await LocationService().getCurrentPosition();
+      if (pos == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Unable to get your location. Please enable GPS.'),
+              backgroundColor: Color(0xFFE74C3C),
+            ),
+          );
+        }
+        return;
+      }
+
+      // 3. Upload to Firestore
       final species = widget.mosquitoType.toLowerCase().contains('aegypti')
-          ? 'aegypti' : 'albopictus';
+          ? 'aegypti'
+          : 'albopictus';
       await SightingUploadService().upload(
         species: species,
         lat: pos.latitude,
@@ -135,16 +190,53 @@ class _ResultScreenState extends State<ResultScreen> {
         confidence: widget.confidence,
         timestamp: widget.testDate,
       );
-    }
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Result saved to history'),
-          backgroundColor: Color(0xFF2ECC71),
-        ),
-      );
+      if (mounted) {
+        setState(() => _isShared = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sighting shared to the dengue map!'),
+            backgroundColor: Color(0xFF2ECC71),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSharing = false);
     }
+  }
+
+  /// Shows a dialog informing the user there is no internet connection.
+  void _showNoInternetDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.wifi_off_rounded, color: Colors.red.shade700),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('No Internet Connection',
+                    style: TextStyle(fontSize: 18)),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Please connect to the internet to share your result to the dengue map. You can still save it locally using "Record Result".',
+            style: TextStyle(fontSize: 14, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -166,24 +258,32 @@ class _ResultScreenState extends State<ResultScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Row(
             children: [
               Icon(Icons.info_outline, color: Colors.blue.shade700),
               const SizedBox(width: 8),
               const Expanded(
-                child: Text('No Mosquito Detected', style: TextStyle(fontSize: 18)),
+                child: Text(
+                  'No Mosquito Detected',
+                  style: TextStyle(fontSize: 18),
+                ),
               ),
             ],
           ),
           content: const Text(
-            'We could not detect any mosquito in the provided image. Please try again with a clearer image if you believe a mosquito is present.',
+            "We couldn't detect any mosquito in the image. Make sure the mosquito is in focus and well-lit for better accuracy.",
             style: TextStyle(fontSize: 14),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+              child: const Text(
+                'OK',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         );
@@ -356,9 +456,11 @@ class _ResultScreenState extends State<ResultScreen> {
     final mt = widget.mosquitoType.toLowerCase();
     final hasNamedMosquito =
         mt.isNotEmpty && mt != 'unknown' && mt != 'no mosquito' && mt != 'none';
-    final count = widget.savedDetectionCount ?? (detections.isNotEmpty
-        ? detections.length
-        : (hasNamedMosquito ? 1 : 0));
+    final count =
+        widget.savedDetectionCount ??
+        (detections.isNotEmpty
+            ? detections.length
+            : (hasNamedMosquito ? 1 : 0));
     final countLabel = count == 1
         ? '1 Mosquito Detected'
         : '$count Mosquitoes Detected';
@@ -728,31 +830,80 @@ class _ResultScreenState extends State<ResultScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Result shared successfully!'),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.share),
-                        label: const Text('Share Result'),
-                      ),
-                    ),
                     if (!widget.isFromHistory) ...[
-                      const SizedBox(height: 12),
+                      // ── Share Result (Firestore upload) — dengue vectors only ──
+                      if (_hasAnyDengueVector) ...[
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: (_isShared || _isSharing)
+                                ? null
+                                : _shareResult,
+                            icon: _isSharing
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Icon(
+                                    _isShared
+                                        ? Icons.check_circle
+                                        : Icons.share,
+                                    size: 20,
+                                  ),
+                            label: Text(
+                              _isShared ? 'Result Shared' : 'Share Result',
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                              backgroundColor: _isShared
+                                  ? const Color(0xFF2ECC71)
+                                  : const Color(0xFFE67E22),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      // ── Record Result (local save only) ──
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
-                          onPressed: _recordResult,
-                          icon: const Icon(Icons.save_outlined, size: 20),
-                          label: const Text('Record Result'),
+                          onPressed: (_isRecorded || _isRecording)
+                              ? null
+                              : _recordResult,
+                          icon: _isRecording
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Icon(
+                                  _isRecorded
+                                      ? Icons.check_circle
+                                      : Icons.save_outlined,
+                                  size: 20,
+                                ),
+                          label: Text(
+                            _isRecorded
+                                ? 'Result Recorded'
+                                : 'Record Result',
+                          ),
                           style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            backgroundColor: _blue,
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 14),
+                            backgroundColor:
+                                _isRecorded ? const Color(0xFF2ECC71) : _blue,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),

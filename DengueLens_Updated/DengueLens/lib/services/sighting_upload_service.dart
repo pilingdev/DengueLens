@@ -1,15 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'upload_queue_service.dart';
 
 class SightingUploadService {
   static final SightingUploadService _instance = SightingUploadService._internal();
   factory SightingUploadService() => _instance;
   SightingUploadService._internal();
 
-  final _db = FirebaseFirestore.instance;
-
-  /// Uploads a confirmed dengue vector scan to Firestore.
+  /// Uploads a confirmed dengue vector scan to the persistent queue for syncing to Firestore.
   Future<void> upload({
     required String species,
     required double lat,
@@ -18,24 +15,15 @@ class SightingUploadService {
     required DateTime timestamp,
   }) async {
     try {
-      // Ensure user is signed in anonymously
-      User? user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        final authResult = await FirebaseAuth.instance.signInAnonymously();
-        user = authResult.user;
-      }
-
-      await _db.collection('sightings').add({
-        'species': species,
-        'lat': lat,
-        'lng': lng,
-        'confidence': confidence,
-        'timestamp': Timestamp.fromDate(timestamp),
-        'userId': user?.uid ?? 'unknown',
-      });
-      debugPrint('Sighting uploaded to Firestore successfully.');
+      await UploadQueueService().enqueue(
+        species: species,
+        lat: lat,
+        lng: lng,
+        confidence: confidence,
+        timestamp: timestamp,
+      );
     } catch (e) {
-      debugPrint('Failed to upload sighting: $e');
+      debugPrint('Failed to enqueue sighting: $e');
       // We don't throw here to ensure the local app flow continues smoothly
     }
   }
