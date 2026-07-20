@@ -91,7 +91,9 @@ class _DengueLensHomeState extends State<DengueLensHome> {
   }
 
   /// Best detection box for overlay (matches [PredictionResult.displayName] priority).
-  Rect? _primaryBoundingBox(PredictionResult prediction) {
+  /// Returns the primary bounding box for the most confident dengue detection.
+/// Returns null if there are no detections.
+Rect? _primaryBoundingBox(PredictionResult prediction) {
     final detections = prediction.detections;
     if (detections.isEmpty) return null;
     final vectors = detections.where((d) => d.isDengueVector).toList();
@@ -104,6 +106,10 @@ class _DengueLensHomeState extends State<DengueLensHome> {
     return sorted.first.boundingBox;
   }
 
+  /// Handles image selection from the device gallery.
+  /// Validates supported file extensions, updates UI state to show a processing overlay,
+  /// runs the TFLite model for prediction, and navigates to the result screen.
+  /// Errors are shown via SnackBar.
   Future<void> _pickImageFromGallery() async {
     if (_isProcessing) return;
     try {
@@ -399,7 +405,7 @@ class _DengueLensHomeState extends State<DengueLensHome> {
         if (_isProcessing)
           Positioned.fill(
             child: Container(
-              color: Colors.black.withValues(alpha: 0.65),
+              color: Colors.black.withOpacity(0.65),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -441,7 +447,7 @@ class _DengueLensHomeState extends State<DengueLensHome> {
                   Text(
                     'Running two-stage detection',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.65),
+                      color: Colors.white.withOpacity(0.65),
                       fontSize: 13,
                       fontWeight: FontWeight.w400,
                       decoration: TextDecoration.none,
@@ -491,6 +497,11 @@ class HomeHeader extends StatelessWidget {
                 ),
               ],
             ),
+            child: const Icon(
+              Icons.eco_outlined,
+              color: Color(0xFF2ECC71),
+              size: 22,
+            ),
           ),
           const Text(
             'Dengue Lens',
@@ -512,6 +523,11 @@ class HomeHeader extends StatelessWidget {
                   offset: const Offset(0, 4),
                 ),
               ],
+            ),
+            child: const Icon(
+              Icons.notifications_outlined,
+              color: Colors.black54,
+              size: 22,
             ),
           ),
         ],

@@ -2,14 +2,19 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:http/http.dart' as http;
 
+/// Service that monitors network connectivity and provides a broadcast stream of online status.
 class ConnectivityService {
   static final ConnectivityService _instance = ConnectivityService._internal();
   factory ConnectivityService() => _instance;
   ConnectivityService._internal();
 
   final _connectivityStreamController = StreamController<bool>.broadcast();
+
+  /// Broadcast stream emitting the current online status (`true` for connected, `false` otherwise).
   Stream<bool> get connectivityStream => _connectivityStreamController.stream;
 
+  /// Initializes connectivity listening and emits online status changes.
+  /// Should be called once during app startup.
   void init() {
     Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) async {
       bool hasInternet = await hasInternetAccess();
@@ -18,7 +23,10 @@ class ConnectivityService {
   }
 
   /// Checks if the device has an active internet connection.
-  /// It verifies both the network interface and actual reachability via a lightweight HTTP ping.
+  /// This method first checks the network interfaces via `Connectivity().checkConnectivity()`.
+  /// If a network is present, it performs a lightweight HTTP HEAD request to a reliable endpoint
+  /// (OpenStreetMap tile server) to verify actual internet reachability.
+  /// Returns `true` only when both interface and remote reachability succeed.
   Future<bool> hasInternetAccess() async {
     final List<ConnectivityResult> connectivityResults = await Connectivity().checkConnectivity();
     if (connectivityResults.contains(ConnectivityResult.none)) {

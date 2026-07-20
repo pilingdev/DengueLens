@@ -37,6 +37,8 @@ class TfliteService {
   //Initialisation
 
   ///Load the models and label lists from Flutter assets.
+  /// Initializes the TFLite interpreters and loads model assets.
+  /// Should be called once during app startup before any predictions.
   Future<void> init() async {
     if (_initialized) return;
 

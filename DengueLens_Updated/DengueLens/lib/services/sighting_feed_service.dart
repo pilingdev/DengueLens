@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import '../models/sighting_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+/// Service providing real‑time dengue vector sighting streams from Firestore.
 class SightingFeedService {
   static final SightingFeedService _instance = SightingFeedService._internal();
   factory SightingFeedService() => _instance;
