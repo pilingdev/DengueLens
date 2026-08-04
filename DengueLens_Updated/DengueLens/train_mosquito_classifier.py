@@ -110,6 +110,24 @@ if NUM_CLASSES < 2:
 # ⚠️ NO rescale=1./255 here! The model's built-in Rescaling layer handles it.
 # We pass raw [0, 255] float32 pixels to match the TFLite inference pipeline.
 
+def get_random_eraser(p=0.5, s_l=0.02, s_h=0.4, r_1=0.3, r_2=1/0.3, v_l=0, v_h=255):
+    """Random Cutout/Erasing augmentation logic."""
+    def eraser(input_img):
+        if np.random.rand() > p:
+            return input_img
+        img_h, img_w, img_c = input_img.shape
+        s = np.random.uniform(s_l, s_h) * img_h * img_w
+        r = np.random.uniform(r_1, r_2)
+        w = int(np.sqrt(s / r))
+        h = int(np.sqrt(s * r))
+        left = np.random.randint(0, img_w)
+        top = np.random.randint(0, img_h)
+        if left + w <= img_w and top + h <= img_h:
+            c = np.random.uniform(v_l, v_h)
+            input_img[top:top + h, left:left + w, :] = c
+        return input_img
+    return eraser
+
 train_datagen = ImageDataGenerator(
     # Raw pixel values — no rescaling!
     rotation_range=30,
@@ -121,6 +139,7 @@ train_datagen = ImageDataGenerator(
     vertical_flip=True,       # Mosquito crops can appear at any orientation
     brightness_range=[0.7, 1.3],
     fill_mode="reflect",
+    preprocessing_function=get_random_eraser(p=0.5, v_l=0, v_h=255)
 )
 
 val_datagen = ImageDataGenerator(
@@ -241,8 +260,8 @@ print("="*70)
 backbone.trainable = False
 
 model.compile(
-    optimizer=optimizers.Adam(learning_rate=LEARNING_RATE),
-    loss=keras.losses.CategoricalCrossentropy(label_smoothing=LABEL_SMOOTHING),
+    optimizer=optimizers.AdamW(learning_rate=LEARNING_RATE, weight_decay=1e-4),
+    loss=tf.keras.losses.CategoricalFocalCrossentropy(alpha=0.25, gamma=2.0, label_smoothing=LABEL_SMOOTHING),
     metrics=["accuracy"],
 )
 
@@ -275,10 +294,17 @@ print("="*70)
 # Unfreeze the backbone
 backbone.trainable = True
 
-# Use a lower learning rate for fine-tuning to avoid catastrophic forgetting
+# Use CosineDecay for fine-tuning to gracefully find wider optima
+decay_steps = EPOCHS_FINETUNE * (len(train_generator.classes) // BATCH_SIZE + 1)
+lr_schedule = optimizers.schedules.CosineDecay(
+    initial_learning_rate=FINETUNE_LR,
+    decay_steps=decay_steps,
+    alpha=0.01
+)
+
 model.compile(
-    optimizer=optimizers.Adam(learning_rate=FINETUNE_LR),
-    loss=keras.losses.CategoricalCrossentropy(label_smoothing=LABEL_SMOOTHING),
+    optimizer=optimizers.AdamW(learning_rate=lr_schedule, weight_decay=1e-4),
+    loss=tf.keras.losses.CategoricalFocalCrossentropy(alpha=0.25, gamma=2.0, label_smoothing=LABEL_SMOOTHING),
     metrics=["accuracy"],
 )
 
@@ -287,13 +313,6 @@ finetune_callbacks = [
         monitor="val_accuracy",
         patience=7,
         restore_best_weights=True,
-        verbose=1,
-    ),
-    callbacks.ReduceLROnPlateau(
-        monitor="val_loss",
-        factor=0.5,
-        patience=3,
-        min_lr=1e-7,
         verbose=1,
     ),
     callbacks.ModelCheckpoint(

@@ -1,5 +1,0 @@
-Aegypti
-Albopictus
-Anopheles
-Culex
-Non-Mosquito

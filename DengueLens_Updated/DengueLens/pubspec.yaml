@@ -1,4 +1,4 @@
-name: DengueLens
+name: dengue_lens
 description: "Dengue Lens: AI-powered dengue vector detection."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -55,6 +55,7 @@ dependencies:
   firebase_core: ^3.13.1
   firebase_auth: ^5.5.4 
   cloud_firestore: ^5.6.7
+  flutter_riverpod: ^2.6.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -77,11 +78,9 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
   assets:
-    - Model/yolov8n_detector.tflite
-    - Model/mobilenetv3_mosquito_classifier.tflite
-    - Model/labels_detector.txt
+    - Model/yolo11/best_int8.tflite
+    - Model/yolo11/best_float32.tflite
     - Model/labels_classifier.txt
 
   # An image asset can refer to one or more resolution-specific "variants", see

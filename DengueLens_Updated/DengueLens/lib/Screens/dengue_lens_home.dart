@@ -13,7 +13,8 @@ import 'point_map_screen.dart';
 import 'tutorial_overlay.dart';
 
 class DengueLensHome extends StatefulWidget {
-  const DengueLensHome({super.key});
+  final bool modelReady;
+  const DengueLensHome({super.key, required this.modelReady});
 
   @override
   State<DengueLensHome> createState() => _DengueLensHomeState();
@@ -51,11 +52,14 @@ class _DengueLensHomeState extends State<DengueLensHome> {
           children: [
             Icon(Icons.school_outlined, color: Color(0xFF2ECC71), size: 26),
             SizedBox(width: 10),
-            Text('Replay Tutorial?',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87)),
+            Text(
+              'Replay Tutorial?',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
           ],
         ),
         content: const Text(
@@ -65,9 +69,13 @@ class _DengueLensHomeState extends State<DengueLensHome> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600, color: Colors.grey[500])),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[500],
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () {
@@ -80,10 +88,13 @@ class _DengueLensHomeState extends State<DengueLensHome> {
               foregroundColor: Colors.white,
               elevation: 0,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-            child: const Text('Replay',
-                style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Replay',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -91,9 +102,7 @@ class _DengueLensHomeState extends State<DengueLensHome> {
   }
 
   /// Best detection box for overlay (matches [PredictionResult.displayName] priority).
-  /// Returns the primary bounding box for the most confident dengue detection.
-/// Returns null if there are no detections.
-Rect? _primaryBoundingBox(PredictionResult prediction) {
+  Rect? _primaryBoundingBox(PredictionResult prediction) {
     final detections = prediction.detections;
     if (detections.isEmpty) return null;
     final vectors = detections.where((d) => d.isDengueVector).toList();
@@ -106,12 +115,18 @@ Rect? _primaryBoundingBox(PredictionResult prediction) {
     return sorted.first.boundingBox;
   }
 
-  /// Handles image selection from the device gallery.
-  /// Validates supported file extensions, updates UI state to show a processing overlay,
-  /// runs the TFLite model for prediction, and navigates to the result screen.
-  /// Errors are shown via SnackBar.
   Future<void> _pickImageFromGallery() async {
     if (_isProcessing) return;
+    if (!widget.modelReady) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Model not ready yet. Please wait and try again.'),
+          ),
+        );
+      }
+      return;
+    }
     try {
       // Use file_picker for better Windows desktop support
       FilePickerResult? result = await FilePicker.pickFiles(
@@ -186,6 +201,16 @@ Rect? _primaryBoundingBox(PredictionResult prediction) {
 
   Future<void> _captureImageFromCamera() async {
     if (_isProcessing) return;
+    if (!widget.modelReady) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Model not ready yet. Please wait and try again.'),
+          ),
+        );
+      }
+      return;
+    }
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? photo = await picker.pickImage(source: ImageSource.camera);
@@ -263,11 +288,17 @@ Rect? _primaryBoundingBox(PredictionResult prediction) {
                           const SizedBox(height: 40),
 
                           // Primary Action - Scan Button
-                          ScanButton(key: _scanButtonKey, onTap: _captureImageFromCamera),
+                          ScanButton(
+                            key: _scanButtonKey,
+                            onTap: _captureImageFromCamera,
+                          ),
 
                           const SizedBox(height: 24),
                           // Secondary Action - Upload
-                          UploadButton(key: _uploadButtonKey, onPressed: _pickImageFromGallery),
+                          UploadButton(
+                            key: _uploadButtonKey,
+                            onPressed: _pickImageFromGallery,
+                          ),
 
                           const SizedBox(height: 24),
 
@@ -277,14 +308,17 @@ Rect? _primaryBoundingBox(PredictionResult prediction) {
                               showModalBottomSheet(
                                 context: context,
                                 shape: const RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                  borderRadius: BorderRadius.vertical(
+                                    top: Radius.circular(20),
+                                  ),
                                 ),
                                 builder: (BuildContext context) {
                                   return Container(
                                     padding: const EdgeInsets.all(24),
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Treating a Mosquito Bite',
@@ -301,19 +335,35 @@ Rect? _primaryBoundingBox(PredictionResult prediction) {
                                           '3. Avoid scratching the bite to prevent infection.\n'
                                           '4. Apply an over-the-counter anti-itch or antihistamine cream.\n'
                                           '5. Monitor the bite for signs of infection (increased redness, swelling, or pus).',
-                                          style: TextStyle(fontSize: 16, height: 1.5, color: Colors.black54),
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            height: 1.5,
+                                            color: Colors.black54,
+                                          ),
                                         ),
                                         const SizedBox(height: 24),
                                         SizedBox(
                                           width: double.infinity,
                                           child: ElevatedButton(
-                                            onPressed: () => Navigator.pop(context),
+                                            onPressed: () =>
+                                                Navigator.pop(context),
                                             style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(0xFF2ECC71),
+                                              backgroundColor: const Color(
+                                                0xFF2ECC71,
+                                              ),
                                               foregroundColor: Colors.white,
-                                              padding: const EdgeInsets.symmetric(vertical: 14),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 14,
+                                                  ),
                                             ),
-                                            child: const Text('Close', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                            child: const Text(
+                                              'Close',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -360,7 +410,9 @@ Rect? _primaryBoundingBox(PredictionResult prediction) {
               } else if (index == 2) {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const PointMapScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const PointMapScreen(),
+                  ),
                 );
               } else if (index == 3) {
                 Navigator.push(
@@ -374,7 +426,9 @@ Rect? _primaryBoundingBox(PredictionResult prediction) {
               } else if (index == 4) {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const EducationalLibraryScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const EducationalLibraryScreen(),
+                  ),
                 );
               }
             },
@@ -396,7 +450,10 @@ Rect? _primaryBoundingBox(PredictionResult prediction) {
                 icon: Icon(Icons.health_and_safety_outlined),
                 label: 'Risk Assessment',
               ),
-              NavigationDestination(icon: Icon(Icons.local_library_outlined), label: 'Library'),
+              NavigationDestination(
+                icon: Icon(Icons.local_library_outlined),
+                label: 'Library',
+              ),
             ],
           ),
         ),
@@ -405,7 +462,7 @@ Rect? _primaryBoundingBox(PredictionResult prediction) {
         if (_isProcessing)
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.65),
+              color: Colors.black.withValues(alpha: 0.65),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -418,7 +475,7 @@ Rect? _primaryBoundingBox(PredictionResult prediction) {
                         width: 180,
                         height: 180,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
                       ),
                     ),
                   const SizedBox(height: 28),
@@ -447,7 +504,7 @@ Rect? _primaryBoundingBox(PredictionResult prediction) {
                   Text(
                     'Running two-stage detection',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.65),
+                      color: Colors.white.withValues(alpha: 0.65),
                       fontSize: 13,
                       fontWeight: FontWeight.w400,
                       decoration: TextDecoration.none,
@@ -497,11 +554,6 @@ class HomeHeader extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Icon(
-              Icons.eco_outlined,
-              color: Color(0xFF2ECC71),
-              size: 22,
-            ),
           ),
           const Text(
             'Dengue Lens',
@@ -523,11 +575,6 @@ class HomeHeader extends StatelessWidget {
                   offset: const Offset(0, 4),
                 ),
               ],
-            ),
-            child: const Icon(
-              Icons.notifications_outlined,
-              color: Colors.black54,
-              size: 22,
             ),
           ),
         ],

@@ -7,12 +7,12 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:DengueLens/main.dart';
+import 'package:dengue_lens/main.dart';
 
 void main() {
   testWidgets('Dengue Lens UI smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const DengueLensApp());
+    await tester.pumpWidget(const DengueLensApp(modelReady: true));
 
     // Verify that our title is present.
     expect(find.text('Dengue Lens'), findsOneWidget);

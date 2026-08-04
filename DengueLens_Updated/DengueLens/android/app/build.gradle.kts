@@ -8,6 +8,14 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+configurations.all {
+    resolutionStrategy {
+        force("com.google.ai.edge.litert:litert:1.4.2")
+        force("com.google.ai.edge.litert:litert-api:1.4.2")
+        force("com.google.ai.edge.litert:litert-gpu:1.4.2")
+    }
+}
+
 android {
     namespace = "com.example.qwe"
     compileSdk = flutter.compileSdkVersion

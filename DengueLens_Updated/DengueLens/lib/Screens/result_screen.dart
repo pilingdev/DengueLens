@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'package:image/image.dart' as img;
@@ -92,17 +94,17 @@ class _ResultScreenState extends State<ResultScreen> {
     if (widget.imagePath == null) return;
     try {
       final bytes = await widget.imagePath!.readAsBytes();
-      var image = img.decodeImage(bytes);
-      if (image == null) return;
-      final oriented = img.bakeOrientation(image);
-      if (!mounted) return;
-      setState(() {
-        _displayBytes = Uint8List.fromList(
-          img.encodeJpg(oriented, quality: 92),
-        );
+      // Offload the CPU-intensive decode + EXIF-bake to a background isolate
+      // so the result screen's animations and scrolling remain fluid.
+      final oriented = await Isolate.run(() {
+        final decoded = img.decodeImage(bytes);
+        if (decoded == null) return null;
+        return Uint8List.fromList(img.encodeJpg(img.bakeOrientation(decoded), quality: 90));
       });
+      if (!mounted || oriented == null) return;
+      setState(() => _displayBytes = oriented);
     } catch (_) {
-      // Fall back to Image.file
+      // Fall back to Image.file if decoding fails
     }
   }
 
@@ -180,9 +182,16 @@ class _ResultScreenState extends State<ResultScreen> {
       }
 
       // 3. Upload to Firestore
-      final species = widget.mosquitoType.toLowerCase().contains('aegypti')
-          ? 'aegypti'
-          : 'albopictus';
+      // Derive species from the actual detection list, not just the display string,
+      // to avoid defaulting non-dengue species (Culex/Anopheles) to 'albopictus'.
+      final dengueVectors = _overlayDetections.where((d) => d.isDengueVector).toList();
+      if (dengueVectors.isEmpty) {
+        // Nothing to share – not a dengue vector
+        if (mounted) setState(() => _isSharing = false);
+        return;
+      }
+      dengueVectors.sort((a, b) => b.confidence.compareTo(a.confidence));
+      final species = dengueVectors.first.label.toLowerCase(); // 'aegypti' | 'albopictus'
       await SightingUploadService().upload(
         species: species,
         lat: pos.latitude,

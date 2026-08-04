@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'Screens/dengue_lens_home.dart';
 import 'services/tflite_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -12,34 +13,58 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Firebase
+
+  // ── Firebase ──────────────────────────────────────────────────────────────
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  
-  // Sign in anonymously for Firebase Firestore rules
+
+  // Sign in anonymously so Firestore security rules can allow writes.
+  // If it fails (no network / provider disabled) we continue – the app works
+  // offline and the upload queue will re-auth when connectivity is restored.
   try {
     await FirebaseAuth.instance.signInAnonymously();
   } catch (e) {
-    debugPrint("Failed to sign in anonymously: $e");
+    debugPrint('Anonymous sign-in failed (non-fatal): $e');
   }
 
-  // Pre-load the TFLite model once so inference is fast
-  await TfliteService().init();
+  // ── Local storage ─────────────────────────────────────────────────────────
   await Hive.initFlutter();
   await HistoryService().init();
   await TutorialService().init();
-  
-  // Initialize connectivity and offline upload queue
+
+  // ── TFLite model ──────────────────────────────────────────────────────────
+  // Wrapped in try/catch so a corrupted asset doesn't crash the process.
+  // The home screen checks [TfliteService.isInitialized] and shows an error
+  // banner if the model failed to load.
+  bool modelReady = false;
+  try {
+    await TfliteService().init();
+    modelReady = true;
+  } catch (e) {
+    debugPrint('TFLite init failed: $e');
+  }
+
+  // ── Connectivity + offline upload queue ──────────────────────────────────
   ConnectivityService().init();
   await UploadQueueService().init();
-  
-  runApp(const DengueLensApp());
+
+  // ── Launch ────────────────────────────────────────────────────────────────
+  // ProviderScope is the root of the Riverpod dependency tree. Every
+  // ConsumerWidget / ConsumerStatefulWidget in the app reads providers
+  // through this scope. There is zero runtime overhead compared to plain
+  // StatefulWidget – providers are lazy by default and only compute when
+  // first watched.
+  runApp(
+    ProviderScope(
+      child: DengueLensApp(modelReady: modelReady),
+    ),
+  );
 }
 
 class DengueLensApp extends StatelessWidget {
-  const DengueLensApp({super.key});
+  final bool modelReady;
+  const DengueLensApp({super.key, required this.modelReady});
 
   @override
   Widget build(BuildContext context) {
@@ -48,13 +73,13 @@ class DengueLensApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        fontFamily: 'Roboto', // Default, but explicit is good.
+        fontFamily: 'Roboto',
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF2ECC71),
           brightness: Brightness.light,
         ),
       ),
-      home: const DengueLensHome(),
+      home: DengueLensHome(modelReady: modelReady),
     );
   }
 }

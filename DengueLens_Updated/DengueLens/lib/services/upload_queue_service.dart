@@ -129,11 +129,26 @@ class UploadQueueService {
         return;
       }
 
-      // Ensure user is signed in anonymously
+      // ── Auth guard ────────────────────────────────────────────────────────
+      // Always ensure a valid Firebase user exists before writing to Firestore.
+      // The current user token may have expired, so we re-authenticate if needed.
       User? user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        final authResult = await FirebaseAuth.instance.signInAnonymously();
-        user = authResult.user;
+        try {
+          final authResult = await FirebaseAuth.instance
+              .signInAnonymously()
+              .timeout(const Duration(seconds: 10));
+          user = authResult.user;
+        } catch (authErr) {
+          debugPrint('Auth failed during queue drain (will retry later): $authErr');
+          _isDraining = false;
+          return;
+        }
+      }
+      if (user == null) {
+        debugPrint('No authenticated user – skipping drain.');
+        _isDraining = false;
+        return;
       }
 
       final db = FirebaseFirestore.instance;
@@ -149,7 +164,7 @@ class UploadQueueService {
           'lng': item['lng'],
           'confidence': item['confidence'],
           'timestamp': Timestamp.fromDate(DateTime.parse(item['timestamp'] as String)),
-          'userId': user?.uid ?? 'unknown',
+          'userId': user.uid,
         });
       }
 
@@ -193,10 +208,20 @@ class UploadQueueService {
         await _deadLetterBox.put(key, item);
         await _queueBox.delete(key);
       } else {
-        // Exponential backoff
+        // Exponential backoff: 2s, 4s, 8s, 16s... cap at 60 s
         int retryCount = (item['retryCount'] as int? ?? 0) + 1;
-        // 2s, 4s, 8s, 16s... up to 60s
-        int backoffSeconds = (1 << retryCount); 
+
+        // Max retry cap: after 5 failures move to dead-letter queue to prevent
+        // unbounded Hive storage growth on persistently-failing uploads.
+        const int maxRetries = 5;
+        if (retryCount >= maxRetries) {
+          debugPrint('Max retries reached. Moving item $key to dead letter box.');
+          await _deadLetterBox.put(key, item);
+          await _queueBox.delete(key);
+          continue;
+        }
+
+        int backoffSeconds = (1 << retryCount);
         if (backoffSeconds > 60) backoffSeconds = 60;
         
         item['retryCount'] = retryCount;
